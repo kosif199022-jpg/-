@@ -15,7 +15,7 @@ interface CloudflareEnvelope<T> {
 
 export class CloudflareApiError extends Error {
   readonly status: number;
-  readonly apiCode?: number;
+  readonly apiCode: number | undefined;
 
   constructor(message: string, status: number, apiCode?: number) {
     super(message);
@@ -64,7 +64,7 @@ export async function cfRequest<T>(
   try {
     const base = baseUrl(env);
     const url = new URL(base.pathname.replace(/\/$/, "") + path, base.origin);
-    const response = await fetch(url, {
+    const init: RequestInit = {
       method: options.method ?? "GET",
       headers: {
         authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
@@ -72,9 +72,10 @@ export async function cfRequest<T>(
         ...(options.body === undefined ? {} : { "content-type": "application/json" }),
         ...options.headers,
       },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: controller.signal,
-    });
+    };
+    if (options.body !== undefined) init.body = JSON.stringify(options.body);
+    const response = await fetch(url, init);
 
     const envelope = await readBoundedJson<CloudflareEnvelope<T>>(response);
     if (!response.ok || !envelope.success || envelope.result === undefined) {
