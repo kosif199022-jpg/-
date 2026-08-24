@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "altareeq-cloudflare-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-25",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "observability": { "enabled": true, "head_sampling_rate": 0.1 },
+  "dev": { "port": 8788 },
+  "kv_namespaces": [
+    { "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" }
+  ],
+  "vars": {
+    "MCP_PUBLIC_ORIGIN": "https://invalid.example",
+    "ALLOWED_GITHUB_LOGINS": "kosif199022-jpg",
+    "CLOUDFLARE_API_BASE": "https://api.cloudflare.com/client/v4",
+    "CLOUDFLARE_ACCOUNT_ID": "",
+    "ALTAREEQ_TARGET_WORKER": "altareeq",
+    "ALTAREEQ_R2_BUCKET": "altareeq-documents",
+    "ALTAREEQ_HYPERDRIVE_NAME": "altareeq-postgres"
+  }
+}
