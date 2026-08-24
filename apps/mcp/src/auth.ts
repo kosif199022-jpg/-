@@ -1,4 +1,4 @@
-import { AuthorizationError, type AuthRequest, type OAuthHelpers } from "@cloudflare/workers-oauth-provider";
+import { type AuthRequest, type OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 
 export interface AuthEnv {
   OAUTH_KV: KVNamespace;
@@ -59,10 +59,10 @@ function base64Url(bytes: ArrayBuffer): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-function fromBase64Url(value: string): Uint8Array {
+function fromBase64Url(value: string): ArrayBuffer {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
   const binary = atob(normalized);
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0)).buffer;
 }
 
 async function signState(env: AuthEnv, value: string): Promise<string> {
@@ -92,15 +92,17 @@ async function jsonPost(url: string, form: URLSearchParams): Promise<Record<stri
   return await response.json() as Record<string, unknown>;
 }
 
-function redirectAuthorizationError(error: unknown, oauthReqInfo?: AuthRequest): Response {
-  if (error instanceof AuthorizationError && oauthReqInfo?.redirectUri) {
-    const target = new URL(oauthReqInfo.redirectUri);
-    target.searchParams.set("error", error.errorCode);
-    if (error.description) target.searchParams.set("error_description", error.description);
-    if (oauthReqInfo.state) target.searchParams.set("state", oauthReqInfo.state);
-    return Response.redirect(target.toString(), 302);
-  }
+function invalidAuthorizationRequest(): Response {
   return new Response("Authorization failed", { status: 400, headers: { "cache-control": "no-store" } });
+}
+
+function accessDenied(oauthReqInfo: AuthRequest): Response {
+  const target = new URL(oauthReqInfo.redirectUri);
+  target.searchParams.set("error", "access_denied");
+  target.searchParams.set("error_description", "The user denied access");
+  if (oauthReqInfo.state) target.searchParams.set("state", oauthReqInfo.state);
+  if (oauthReqInfo.issuer) target.searchParams.set("iss", oauthReqInfo.issuer);
+  return Response.redirect(target.toString(), 302);
 }
 
 export function createAuthHandler(): ExportedHandler<AuthEnv> {
@@ -109,10 +111,9 @@ export function createAuthHandler(): ExportedHandler<AuthEnv> {
       const url = new URL(request.url);
 
       if (url.pathname === "/authorize" && request.method === "GET") {
-        let oauthReqInfo: AuthRequest | undefined;
         try {
           requirePublicOrigin(env);
-          oauthReqInfo = await env.OAUTH_PROVIDER.parseAuthRequest(request);
+          const oauthReqInfo = await env.OAUTH_PROVIDER.parseAuthRequest(request);
           const consentId = crypto.randomUUID();
           const csrf = crypto.randomUUID();
           const requested = oauthReqInfo.scope?.filter((scope) => SUPPORTED_SCOPES.has(scope)) ?? ["cloudflare:read"];
@@ -123,8 +124,8 @@ export function createAuthHandler(): ExportedHandler<AuthEnv> {
           return new Response(`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>تفويض ALTAREEQ MCP</title><style>body{font-family:system-ui;max-width:720px;margin:4rem auto;padding:1rem;line-height:1.8}button{min-height:44px;padding:.7rem 1.1rem;font:inherit}code{direction:ltr;unicode-bidi:isolate}</style><h1>تفويض ALTAREEQ Cloudflare MCP</h1><p>العميل: <code>${clientName}</code></p><p>الصلاحيات المطلوبة: <code>${scopes}</code></p><form method="post" action="/authorize"><input type="hidden" name="consent_id" value="${escapeHtml(consentId)}"><input type="hidden" name="csrf" value="${escapeHtml(csrf)}"><button name="decision" value="approve">متابعة إلى GitHub</button> <button name="decision" value="deny">رفض</button></form></html>`, {
             headers: { "content-type": "text/html;charset=utf-8", "cache-control": "no-store", "set-cookie": cookie("__Host-altareeq_csrf", csrf) },
           });
-        } catch (error) {
-          return redirectAuthorizationError(error, oauthReqInfo);
+        } catch {
+          return invalidAuthorizationRequest();
         }
       }
 
@@ -138,9 +139,7 @@ export function createAuthHandler(): ExportedHandler<AuthEnv> {
         await env.OAUTH_KV.delete(`consent:${consentId}`);
         if (!raw) return new Response("Authorization expired", { status: 400 });
         const pending = JSON.parse(raw) as PendingAuthorization;
-        if (form.get("decision") !== "approve") {
-          return redirectAuthorizationError(new AuthorizationError("access_denied", "The user denied access"), pending.oauthReqInfo);
-        }
+        if (form.get("decision") !== "approve") return accessDenied(pending.oauthReqInfo);
 
         try {
           const nonce = crypto.randomUUID();
@@ -154,8 +153,8 @@ export function createAuthHandler(): ExportedHandler<AuthEnv> {
           upstream.searchParams.set("scope", "read:user");
           upstream.searchParams.set("state", signedState);
           return new Response(null, { status: 302, headers: { location: upstream.toString(), "set-cookie": cookie("__Host-altareeq_state", browserBinding) } });
-        } catch (error) {
-          return redirectAuthorizationError(error, pending.oauthReqInfo);
+        } catch {
+          return invalidAuthorizationRequest();
         }
       }
 
