@@ -2,6 +2,7 @@ import { AuthorizationError, type AuthRequest, type OAuthHelpers } from "@cloudf
 
 export interface AuthEnv {
   OAUTH_KV: KVNamespace;
+  OAUTH_PROVIDER: OAuthHelpers;
   MCP_PUBLIC_ORIGIN: string;
   ALLOWED_GITHUB_LOGINS: string;
   GITHUB_CLIENT_ID: string;
@@ -99,18 +100,19 @@ function redirectAuthorizationError(error: unknown, oauthReqInfo?: AuthRequest):
     if (oauthReqInfo.state) target.searchParams.set("state", oauthReqInfo.state);
     return Response.redirect(target.toString(), 302);
   }
-  return new Response("Authorization failed", { status: 400 });
+  return new Response("Authorization failed", { status: 400, headers: { "cache-control": "no-store" } });
 }
 
-export function createAuthHandler(oauthProvider: OAuthHelpers): ExportedHandler<AuthEnv> {
+export function createAuthHandler(): ExportedHandler<AuthEnv> {
   return {
     async fetch(request, env) {
       const url = new URL(request.url);
+
       if (url.pathname === "/authorize" && request.method === "GET") {
         let oauthReqInfo: AuthRequest | undefined;
         try {
           requirePublicOrigin(env);
-          oauthReqInfo = await oauthProvider.parseAuthRequest(request);
+          oauthReqInfo = await env.OAUTH_PROVIDER.parseAuthRequest(request);
           const consentId = crypto.randomUUID();
           const csrf = crypto.randomUUID();
           const requested = oauthReqInfo.scope?.filter((scope) => SUPPORTED_SCOPES.has(scope)) ?? ["cloudflare:read"];
@@ -121,23 +123,26 @@ export function createAuthHandler(oauthProvider: OAuthHelpers): ExportedHandler<
           return new Response(`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>تفويض ALTAREEQ MCP</title><style>body{font-family:system-ui;max-width:720px;margin:4rem auto;padding:1rem;line-height:1.8}button{min-height:44px;padding:.7rem 1.1rem;font:inherit}code{direction:ltr;unicode-bidi:isolate}</style><h1>تفويض ALTAREEQ Cloudflare MCP</h1><p>العميل: <code>${clientName}</code></p><p>الصلاحيات المطلوبة: <code>${scopes}</code></p><form method="post" action="/authorize"><input type="hidden" name="consent_id" value="${escapeHtml(consentId)}"><input type="hidden" name="csrf" value="${escapeHtml(csrf)}"><button name="decision" value="approve">متابعة إلى GitHub</button> <button name="decision" value="deny">رفض</button></form></html>`, {
             headers: { "content-type": "text/html;charset=utf-8", "cache-control": "no-store", "set-cookie": cookie("__Host-altareeq_csrf", csrf) },
           });
-        } catch (error) { return redirectAuthorizationError(error, oauthReqInfo); }
+        } catch (error) {
+          return redirectAuthorizationError(error, oauthReqInfo);
+        }
       }
 
       if (url.pathname === "/authorize" && request.method === "POST") {
-        try {
-          requirePublicOrigin(env);
-          const form = await request.formData();
-          const consentId = String(form.get("consent_id") || "");
-          const csrf = String(form.get("csrf") || "");
-          const cookies = parseCookies(request);
-          if (!consentId || !csrf || cookies.get("__Host-altareeq_csrf") !== csrf) return new Response("Invalid CSRF", { status: 403 });
-          const raw = await env.OAUTH_KV.get(`consent:${consentId}`);
-          await env.OAUTH_KV.delete(`consent:${consentId}`);
-          if (!raw) return new Response("Authorization expired", { status: 400 });
-          const pending = JSON.parse(raw) as PendingAuthorization;
-          if (form.get("decision") !== "approve") throw new AuthorizationError("access_denied", "The user denied access");
+        const form = await request.formData();
+        const consentId = String(form.get("consent_id") || "");
+        const csrf = String(form.get("csrf") || "");
+        const cookies = parseCookies(request);
+        if (!consentId || !csrf || cookies.get("__Host-altareeq_csrf") !== csrf) return new Response("Invalid CSRF", { status: 403 });
+        const raw = await env.OAUTH_KV.get(`consent:${consentId}`);
+        await env.OAUTH_KV.delete(`consent:${consentId}`);
+        if (!raw) return new Response("Authorization expired", { status: 400 });
+        const pending = JSON.parse(raw) as PendingAuthorization;
+        if (form.get("decision") !== "approve") {
+          return redirectAuthorizationError(new AuthorizationError("access_denied", "The user denied access"), pending.oauthReqInfo);
+        }
 
+        try {
           const nonce = crypto.randomUUID();
           const browserBinding = crypto.randomUUID();
           await env.OAUTH_KV.put(`github-state:${nonce}`, JSON.stringify({ pending, browserBinding }), { expirationTtl: CONSENT_TTL_SECONDS });
@@ -149,7 +154,9 @@ export function createAuthHandler(oauthProvider: OAuthHelpers): ExportedHandler<
           upstream.searchParams.set("scope", "read:user");
           upstream.searchParams.set("state", signedState);
           return new Response(null, { status: 302, headers: { location: upstream.toString(), "set-cookie": cookie("__Host-altareeq_state", browserBinding) } });
-        } catch (error) { return redirectAuthorizationError(error); }
+        } catch (error) {
+          return redirectAuthorizationError(error, pending.oauthReqInfo);
+        }
       }
 
       if (url.pathname === "/callback" && request.method === "GET") {
@@ -175,11 +182,11 @@ export function createAuthHandler(oauthProvider: OAuthHelpers): ExportedHandler<
           if (!accessToken) throw new Error("UPSTREAM_OAUTH_TOKEN_MISSING");
           const profileResponse = await fetch("https://api.github.com/user", { headers: { authorization: `Bearer ${accessToken}`, accept: "application/vnd.github+json", "user-agent": "ALTAREEQ-MCP" } });
           if (!profileResponse.ok) throw new Error("GITHUB_PROFILE_FAILED");
-          const profile = await profileResponse.json() as { login?: string; id?: number };
+          const profile = await profileResponse.json() as { login?: string };
           const login = String(profile.login || "").toLowerCase();
           if (!login || !allowedLogins(env).has(login)) return new Response("GitHub identity is not allowed", { status: 403 });
 
-          const completion = await oauthProvider.completeAuthorization({
+          const completion = await env.OAUTH_PROVIDER.completeAuthorization({
             request: pending.oauthReqInfo,
             userId: login,
             metadata: { label: `GitHub:${login}` },
