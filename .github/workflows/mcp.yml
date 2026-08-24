@@ -26,7 +26,7 @@ jobs:
         working-directory: .
         run: |
           test -z "$(find apps/mcp -type f \( -name '.env' -o -name '.dev.vars' -o -name '*.pem' -o -name '*.key' \) -print -quit)"
-          ! grep -RIE --exclude='README.md' --exclude='*.md' '(api[_-]?token|client[_-]?secret|cookie[_-]?encryption[_-]?key)[[:space:]]*[:=][[:space:]]*["'"'][A-Za-z0-9_./+=-]{12,}' apps/mcp
+          ! grep -RIE --exclude='README.md' --exclude='*.md' '(CLOUDFLARE_API_TOKEN|GITHUB_CLIENT_SECRET|COOKIE_ENCRYPTION_KEY)[[:space:]]*[:=][[:space:]]*[A-Za-z0-9_./+=-]{12,}' apps/mcp
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm run types
       - run: npm run typecheck
