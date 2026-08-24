@@ -29,27 +29,32 @@ export class McpApiHandler extends WorkerEntrypoint<Env, AuthProps> {
   }
 }
 
-const oauthHelpers = new OAuthProvider({
+const defaultHandler: ExportedHandler<Env> = {
+  async fetch(request, env, ctx) {
+    if (new URL(request.url).pathname === "/") {
+      let endpoint: string | null = null;
+      try { endpoint = new URL("/mcp", configuredOrigin(env)).toString(); } catch { endpoint = null; }
+      return Response.json(
+        { service: "ALTAREEQ Cloudflare MCP", protocol: "MCP 2026-07-28", endpoint, configured: endpoint !== null },
+        { headers: { "cache-control": "no-store" } },
+      );
+    }
+    const handler = createAuthHandler();
+    if (!handler.fetch) return new Response("Not found", { status: 404 });
+    return handler.fetch(request, env, ctx);
+  },
+};
+
+const oauthProvider = new OAuthProvider<Env>({
   apiRoute: "/mcp",
   apiHandler: McpApiHandler,
   authorizeEndpoint: "/authorize",
   tokenEndpoint: "/oauth/token",
   clientRegistrationEndpoint: "/oauth/register",
-  defaultHandler: {
-    async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-      if (new URL(request.url).pathname === "/") {
-        let resource = "/mcp";
-        try { resource = new URL("/mcp", configuredOrigin(env)).toString(); } catch { /* fail-closed status only */ }
-        return new Response(JSON.stringify({ service: "ALTAREEQ Cloudflare MCP", protocol: "MCP 2026-07-28", endpoint: resource, configured: resource.startsWith("https://") }), {
-          headers: { "content-type": "application/json;charset=utf-8", "cache-control": "no-store" },
-        });
-      }
-      return createAuthHandler(oauthHelpers).fetch!(request, env, ctx);
-    },
-  },
+  defaultHandler,
   scopesSupported: ["cloudflare:read", "cloudflare:r2:write"],
   allowPlainPKCE: false,
   clientIdMetadataDocumentEnabled: true,
 });
 
-export default oauthHelpers;
+export default oauthProvider;
