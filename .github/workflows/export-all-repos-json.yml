@@ -1,0 +1,137 @@
+name: Export repositories to full JSON
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-all-repos-json.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Build complete JSON snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work exports
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, subprocess
+          from datetime import datetime, timezone
+
+          owner = "kosif199022-jpg"
+          repos = [
+              "mahmoud1990",
+              "sky",
+              "mafateeh-al-tharwa",
+              "mafateeh-al-tharwa2",
+              "-",
+              "moon",
+              "aurora-finance",
+          ]
+          root = pathlib.Path.cwd()
+          work = root / "work"
+          exports = root / "exports"
+
+          def run(*args, cwd=None):
+              return subprocess.check_output(args, cwd=cwd, text=True).strip()
+
+          for repo in repos:
+              out = exports / f"{repo if repo != '-' else 'dash-repository'}.json"
+              if repo == "-":
+                  payload = {
+                      "schema": "github-repository-full-json-v1",
+                      "repository": f"{owner}/{repo}",
+                      "branch": "main",
+                      "snapshot_basis": "pre-export repository state",
+                      "snapshot_note": "Repository was empty before the temporary export workflow was added.",
+                      "generated_at": datetime.now(timezone.utc).isoformat(),
+                      "file_count": 0,
+                      "total_bytes": 0,
+                      "files": [],
+                  }
+                  out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+                  continue
+
+              target = work / repo
+              subprocess.check_call([
+                  "git", "clone", "--depth", "1", "--branch", "main",
+                  f"https://github.com/{owner}/{repo}.git", str(target)
+              ])
+              head_sha = run("git", "rev-parse", "HEAD", cwd=target)
+              files = []
+              total_bytes = 0
+              for p in sorted(target.rglob("*")):
+                  if not p.is_file() or ".git" in p.parts:
+                      continue
+                  rel = p.relative_to(target).as_posix()
+                  raw = p.read_bytes()
+                  total_bytes += len(raw)
+                  digest = hashlib.sha256(raw).hexdigest()
+                  encoding = "base64"
+                  content = base64.b64encode(raw).decode("ascii")
+                  try:
+                      text = raw.decode("utf-8")
+                      # Treat NUL-containing payloads as binary even if UTF-8 decode succeeds.
+                      if "\x00" not in text:
+                          encoding = "utf-8"
+                          content = text
+                  except UnicodeDecodeError:
+                      pass
+                  files.append({
+                      "path": rel,
+                      "size": len(raw),
+                      "sha256": digest,
+                      "encoding": encoding,
+                      "content": content,
+                  })
+
+              payload = {
+                  "schema": "github-repository-full-json-v1",
+                  "repository": f"{owner}/{repo}",
+                  "branch": "main",
+                  "head_sha": head_sha,
+                  "generated_at": datetime.now(timezone.utc).isoformat(),
+                  "file_count": len(files),
+                  "total_bytes": total_bytes,
+                  "files": files,
+              }
+              out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+          index = []
+          for p in sorted(exports.glob("*.json")):
+              index.append({
+                  "file": p.name,
+                  "size": p.stat().st_size,
+                  "sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
+              })
+          (exports / "INDEX.json").write_text(
+              json.dumps({
+                  "schema": "github-repository-json-export-index-v1",
+                  "generated_at": datetime.now(timezone.utc).isoformat(),
+                  "repositories": repos,
+                  "exports": index,
+              }, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          PY
+
+          cd exports
+          zip -9 -r ../kosif-repositories-json-export.zip .
+          cd ..
+          ls -lah exports kosif-repositories-json-export.zip
+
+      - name: Upload JSON export bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: kosif-repositories-json-export
+          path: |
+            exports/*.json
+            kosif-repositories-json-export.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
