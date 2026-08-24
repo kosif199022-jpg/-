@@ -1,0 +1,4 @@
+import test from 'node:test'; import assert from 'node:assert/strict'; import { validateJournal } from '../src/journal.mjs';
+test('accepts balanced double entry',()=>{ const r=validateJournal({lines:[{accountId:'cash',debit:'100.00',credit:'0'},{accountId:'capital',debit:'0',credit:'100.00'}]}); assert.equal(r.valid,true); assert.equal(r.debitMinor,10000n); });
+test('rejects unbalanced journal',()=>{ const r=validateJournal({lines:[{accountId:'cash',debit:'100',credit:'0'},{accountId:'rev',debit:'0',credit:'99'}]}); assert.equal(r.valid,false); assert.ok(r.errors.includes('JOURNAL_UNBALANCED')); });
+test('rejects negative and both-sided lines',()=>{ const r=validateJournal({lines:[{accountId:'a',debit:'-1',credit:'1'},{accountId:'b',debit:'2',credit:'0'}]}); assert.equal(r.valid,false); });

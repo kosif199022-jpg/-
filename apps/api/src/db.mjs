@@ -1,0 +1,4 @@
+import { Client } from 'pg';
+export async function withClient(env, fn){ const c=new Client({connectionString:env.HYPERDRIVE.connectionString}); try{await c.connect();return await fn(c);}finally{try{await c.end()}catch{}} }
+export async function provisionedActor(client, subject){ const r=await client.query("SELECT id::text AS id FROM users WHERE identity_subject=$1 AND status='active' LIMIT 1",[subject]); if(!r.rows[0]) throw Object.assign(new Error('IDENTITY_NOT_PROVISIONED'),{status:403}); return r.rows[0].id; }
+export async function assertOrgAccess(client,userId,orgId){ const r=await client.query("SELECT 1 FROM organization_memberships WHERE user_id=$1::uuid AND organization_id=$2::uuid AND status='active'",[userId,orgId]); if(!r.rowCount) throw Object.assign(new Error('ORGANIZATION_ACCESS_DENIED'),{status:403}); }
