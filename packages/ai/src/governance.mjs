@@ -1,0 +1,3 @@
+const FORBIDDEN=new Set(['calculated_materiality','final_opinion','approved_adjustment','posted_entry','posting_command','approval_decision']);
+export function sanitizeAdvisoryOutput(value){if(Array.isArray(value))return value.map(sanitizeAdvisoryOutput);if(!value||typeof value!=='object')return value;const out={};for(const[k,v]of Object.entries(value)){if(FORBIDDEN.has(k))continue;out[k]=sanitizeAdvisoryOutput(v)}return out}
+export function assertAiToolScope(scope){if(['journal.post','journal.approve','audit.final_opinion','adjustment.approve'].includes(scope))throw new Error('AI_AUTHORITY_FORBIDDEN');return true}

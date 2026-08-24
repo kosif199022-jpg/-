@@ -1,0 +1,55 @@
+name: ALTAREEQ CI
+on:
+  push:
+    branches: [main, 'codex/**', 'feat/**', 'fix/**']
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: altareeq-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: 22 }
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Reject committed secrets
+        run: |
+          test -z "$(find . -type f \( -name '.env' -o -name '*.pem' -o -name '*.key' \) -not -path './.git/*' -print -quit)"
+      - run: npm run contract:validate
+      - run: npm test
+      - run: npm run build:web
+      - run: npm audit --audit-level=high
+      - run: npm run deploy:dry-run
+      - name: Verify no authenticated API caching in service worker
+        run: grep -q "pathname.startsWith('/api/')" apps/web/public/sw.js
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: altareeq_test }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d altareeq_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env: { PGHOST: localhost, PGPORT: 5432, PGUSER: postgres, PGPASSWORD: postgres, PGDATABASE: altareeq_test }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { persist-credentials: false }
+      - name: Apply ordered migrations
+        run: |
+          for file in packages/data/migrations/[0-9][0-9][0-9][0-9]_*.sql; do
+            echo "Applying $file"
+            psql -v ON_ERROR_STOP=1 -f "$file"
+          done
+      - name: PostgreSQL accounting, immutability and RLS contract
+        run: psql -v ON_ERROR_STOP=1 -f packages/data/integration/postgres-contract.sql

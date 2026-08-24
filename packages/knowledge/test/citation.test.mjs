@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {validateCitation,assertProfessionalAnswerCitations} from '../src/citation.mjs';
+const good={sourceVersionId:'v1',blockId:'b1',page:2,checksum:'a'.repeat(64)};test('professional citations require version block page and checksum',()=>{assert.equal(validateCitation(good).valid,true);assert.throws(()=>assertProfessionalAnswerCitations([]),/CITATION_REQUIRED/);assert.equal(assertProfessionalAnswerCitations([good]),true)});

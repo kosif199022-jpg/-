@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {canonicalJson,merkleRoot,sealEvidenceBundle} from '../src/bundle.mjs';
+test('canonical JSON and merkle root are deterministic',()=>{assert.equal(canonicalJson({b:2,a:1}),'{"a":1,"b":2}');assert.equal(merkleRoot([{id:1},{id:2}]),merkleRoot([{id:1},{id:2}]))});
+test('evidence seal requires four eyes',()=>{assert.throws(()=>sealEvidenceBundle({engagementId:'e',items:[],preparerId:'u',reviewerId:'u'}),/SEPARATION/);const s=sealEvidenceBundle({engagementId:'e',items:[{id:1}],preparerId:'u1',reviewerId:'u2'});assert.equal(s.sealHash.length,64)});

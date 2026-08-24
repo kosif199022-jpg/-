@@ -1,0 +1,5 @@
+{
+  "name":"altareeq","version":"0.1.0","private":true,"type":"module","engines":{"node":">=22.13.0"},
+  "scripts":{"contract:validate":"node scripts/validate-contract.mjs","test":"node --test packages/accounting/test/*.test.mjs packages/audit/test/*.test.mjs packages/security/test/*.test.mjs packages/reconciliation/test/*.test.mjs packages/evidence/test/*.test.mjs packages/subledgers/test/*.test.mjs packages/assets/test/*.test.mjs packages/ai/test/*.test.mjs packages/knowledge/test/*.test.mjs tests/*.test.mjs","build:web":"node scripts/build-web.mjs","build":"npm run contract:validate && npm test && npm run build:web","deploy:dry-run":"npx wrangler deploy --dry-run --config apps/api/wrangler.jsonc","deploy":"npx wrangler deploy --config apps/api/wrangler.jsonc"},
+  "dependencies":{"jose":"6.2.10","pg":"8.23.0"},"devDependencies":{"wrangler":"4.125.0"}
+}

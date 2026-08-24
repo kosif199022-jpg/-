@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {generateCandidates,allocateSingleUse} from '../src/matcher.mjs';
+test('generates exact amount/date/reference candidates deterministically',()=>{const c=generateCandidates([{id:'b1',amount:'١٠٠٫٠٠',date:'2026-08-01',reference:'ABC'}],[{id:'l1',amount:'100.00',date:'2026-08-01',reference:'abc'}]);assert.equal(c.length,1);assert.equal(c[0].score,100);assert.equal(c[0].amountMinor,10000n)});
+test('respects date tolerance and single-use allocation',()=>{const c=generateCandidates([{id:'b1',amount:'50',date:'2026-08-01'},{id:'b2',amount:'50',date:'2026-08-02'}],[{id:'l1',amount:'50',date:'2026-08-01'}],{dateToleranceDays:1});assert.equal(c.length,2);assert.equal(allocateSingleUse(c).length,1)});

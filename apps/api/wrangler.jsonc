@@ -1,0 +1,3 @@
+{
+  "$schema":"node_modules/wrangler/config-schema.json","name":"altareeq","main":"src/index.mjs","compatibility_date":"2026-08-25","compatibility_flags":["nodejs_compat"],"observability":{"enabled":true,"head_sampling_rate":0.1},"assets":{"directory":"../web/dist","binding":"ASSETS","run_worker_first":["/api/*"]},"vars":{"ALTAREEQ_RUNTIME_MODE":"configuration-required","ALTAREEQ_ACCESS_TEAM_DOMAIN":"https://invalid.cloudflareaccess.com","ALTAREEQ_ACCESS_AUD":"UNCONFIGURED"},"hyperdrive":[{"binding":"HYPERDRIVE","id":"00000000000000000000000000000000"}]
+}

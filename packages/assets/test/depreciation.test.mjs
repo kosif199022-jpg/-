@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {straightLineSchedule} from '../src/depreciation.mjs';
+test('straight-line schedule ends exactly at residual value',()=>{const s=straightLineSchedule({cost:'1200',residual:'0',usefulLifeMonths:12});assert.equal(s.length,12);assert.equal(s.at(-1).netBookValueMinor,0n);assert.equal(s.reduce((a,x)=>a+x.depreciationMinor,0n),120000n)});
