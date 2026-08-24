@@ -1,10 +1,9 @@
 name: Export repositories to full JSON
 
 on:
-  push:
+  pull_request:
     branches: [main]
-    paths:
-      - '.github/workflows/export-all-repos-json.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,7 +19,7 @@ jobs:
           set -euo pipefail
           mkdir -p work exports
           python3 - <<'PY'
-          import base64, hashlib, json, os, pathlib, subprocess
+          import base64, hashlib, json, pathlib, subprocess
           from datetime import datetime, timezone
 
           owner = "kosif199022-jpg"
@@ -76,7 +75,6 @@ jobs:
                   content = base64.b64encode(raw).decode("ascii")
                   try:
                       text = raw.decode("utf-8")
-                      # Treat NUL-containing payloads as binary even if UTF-8 decode succeeds.
                       if "\x00" not in text:
                           encoding = "utf-8"
                           content = text
