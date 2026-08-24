@@ -13,7 +13,7 @@ import {
   type CloudflareEnv,
 } from "./cloudflare";
 
-export interface AuthProps {
+export interface AuthProps extends Record<string, unknown> {
   userId: string;
   login: string;
   scopes: string[];
