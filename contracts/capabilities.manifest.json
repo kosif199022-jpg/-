@@ -1,0 +1,7 @@
+{
+  "encoding":"gzip+base64",
+  "parts":["capabilities.part-00.b64","capabilities.part-01.b64","capabilities.part-02.b64","capabilities.part-03.b64","capabilities.part-04.b64"],
+  "base64_chars":28880,
+  "gzip_bytes":21659,
+  "gzip_sha256":"3a4b4ce20b72d8ad20e5469c0be574b3218dc952b1b26e02122f7f00631c8fa5"
+}
