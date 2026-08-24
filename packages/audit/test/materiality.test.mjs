@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {calculateMateriality} from '../src/materiality.mjs';
+test('calculates materiality in exact minor units using basis points',()=>{const r=calculateMateriality({benchmarkAmount:'10,000,000.00',benchmarkBps:500,performanceBps:7500,trivialBps:500});assert.equal(r.overallMinor,50000000n);assert.equal(r.performanceMinor,37500000n);assert.equal(r.clearlyTrivialMinor,2500000n)});

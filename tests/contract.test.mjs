@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import path from 'node:path';import {fileURLToPath} from 'node:url';import {enrich} from '../contracts/machine-policy.mjs';import {loadRegistry} from '../contracts/load-registry.mjs';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');const registry=loadRegistry(root);const legacy=registry.capabilities.slice(0,registry.preserved_legacy_count);const caps=registry.capabilities.map(enrich);
+test('preserves all 445 normalized legacy capabilities',()=>assert.equal(legacy.length,445));
+test('adds net-new ERP gap capabilities without replacing legacy entries',()=>{assert.ok(caps.length>445);assert.ok(caps.some(x=>x.id==='ar.sales_invoice'));assert.ok(caps.some(x=>x.id==='close.final_close'));assert.ok(caps.some(x=>x.id==='inventory.costing_cogs'));});
+test('every capability has risk, authority and executable criteria',()=>{for(const x of caps){assert.ok(['critical','high','normal','low'].includes(x.risk_class),x.id);assert.ok(x.authority_class,x.id);assert.ok(x.acceptance_criteria.length,x.id)}});
+test('financial domains cannot depend on AI',()=>{for(const x of caps.filter(x=>x.dependency_policy.forbidden_dependencies.includes('ai')))assert.ok(!x.dependency_policy.module_dependencies.includes('ai'),x.id)});
+test('preserves all 108 Aurora/Moon theme variants',()=>assert.equal(caps.filter(x=>x.kind==='compatibility_variant').length,108));

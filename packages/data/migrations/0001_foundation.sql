@@ -1,0 +1,8 @@
+BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE TABLE IF NOT EXISTS organizations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),display_name text NOT NULL CHECK(length(trim(display_name)) BETWEEN 1 AND 200),status text NOT NULL DEFAULT 'active' CHECK(status IN ('active','suspended','archived')),created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),identity_subject text NOT NULL UNIQUE,display_name text NOT NULL,email text,status text NOT NULL DEFAULT 'active' CHECK(status IN ('active','disabled')),created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS organization_memberships (organization_id uuid NOT NULL REFERENCES organizations(id),user_id uuid NOT NULL REFERENCES users(id),role_key text NOT NULL,status text NOT NULL DEFAULT 'active' CHECK(status IN ('active','suspended')),PRIMARY KEY(organization_id,user_id));
+ALTER TABLE organization_memberships ENABLE ROW LEVEL SECURITY;DROP POLICY IF EXISTS membership_isolation ON organization_memberships;CREATE POLICY membership_isolation ON organization_memberships USING(user_id::text=nullif(current_setting('altareeq.user_id',true),'') OR organization_id::text=nullif(current_setting('altareeq.organization_id',true),''));
+CREATE TABLE IF NOT EXISTS fiscal_periods (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),organization_id uuid NOT NULL REFERENCES organizations(id),name text NOT NULL,start_date date NOT NULL,end_date date NOT NULL,status text NOT NULL DEFAULT 'open' CHECK(status IN ('open','soft_closed','closed')),CHECK(start_date<=end_date),UNIQUE(organization_id,name));
+COMMIT;

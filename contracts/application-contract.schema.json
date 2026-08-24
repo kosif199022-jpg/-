@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://altareeq.local/contracts/application-contract.schema.json",
+  "type": "object",
+  "required": ["schema_id","schema_version","product","governance","dependency_graph","risk_matrix","performance_envelope","data_dictionary","capability_registry"],
+  "properties": {
+    "schema_id": {"const":"altareeq-machine-executable-contract-v2"},
+    "schema_version": {"type":"string"},
+    "product": {"type":"object"},
+    "governance": {"type":"object"},
+    "dependency_graph": {"type":"object"},
+    "risk_matrix": {"type":"object"},
+    "performance_envelope": {"type":"object"},
+    "data_dictionary": {"type":"object"},
+    "capability_registry": {
+      "type":"array","minItems":1,
+      "items":{"type":"object","required":["id","module","kind","risk_class","authority_class","parity_status","acceptance_criteria","test_policy","dependency_policy","performance_envelope","evidence"],"properties":{"id":{"type":"string","pattern":"^[a-z0-9_.-]+$"},"module":{"type":"string"},"kind":{"enum":["core_capability","compatibility_variant","media_variant","test_capability","engineering_capability"]},"risk_class":{"enum":["critical","high","normal","low"]},"parity_status":{"enum":["not_started","in_progress","parity_verified","deprecated","rejected"]},"acceptance_criteria":{"type":"array","minItems":1},"evidence":{"type":"array"}}}
+    }
+  }
+}

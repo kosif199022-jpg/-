@@ -1,7 +1,2 @@
-import { cp, mkdir, rm } from 'node:fs/promises';
-const src = new URL('../apps/web/public/', import.meta.url);
-const dist = new URL('../apps/web/dist/', import.meta.url);
-await rm(dist, { recursive: true, force: true });
-await mkdir(dist, { recursive: true });
-await cp(src, dist, { recursive: true });
-console.log('ALTAREEQ_WEB_BUILD_OK');
+import { cp, mkdir, rm, writeFile } from 'node:fs/promises';import path from 'node:path';import {fileURLToPath} from 'node:url';import {enrich} from '../contracts/machine-policy.mjs';import {loadRegistry} from '../contracts/load-registry.mjs';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');const src=path.join(root,'apps/web/public'),dist=path.join(root,'apps/web/dist');await rm(dist,{recursive:true,force:true});await mkdir(dist,{recursive:true});await cp(src,dist,{recursive:true});const registry=loadRegistry(root);const caps=registry.capabilities.map(enrich);await writeFile(path.join(dist,'capabilities.json'),JSON.stringify(caps));console.log(`ALTAREEQ_WEB_BUILD_OK capabilities=${caps.length}`);
